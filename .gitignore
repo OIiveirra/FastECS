@@ -1,0 +1,4 @@
+build/
+.vscode/
+clean_comments.py
+FastECS_Notes.md
