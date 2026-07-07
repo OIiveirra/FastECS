@@ -1,8 +1,2 @@
 build/
 .vscode/
-clean_comments.py
-commit.py
-push.py
-push_readme.py
-push_notes.py
-FastECS_Notes.md
