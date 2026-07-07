@@ -109,8 +109,11 @@ int main() {
 
     std::cout << "Speedup: " << diffSingle.count() / diffMulti.count() << "x" << std::endl;
 
-    std::cout << "\nPress Enter to exit..." << std::endl;
-    std::cin.get();
+    std::cout << "\n----------------------------------------\n";
+    std::cout << "Engine test completed. Press any key to exit." << std::endl;
+    
+    // 在 Windows 系统下，用 system("pause") 是防止双击 exe 闪退的最稳定方法。
+    system("pause");
 
     return 0;
 }
