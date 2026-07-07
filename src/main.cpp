@@ -17,8 +17,10 @@ struct Renderable {
     int meshId;
 };
 
+// 单线程物理更新系统
 void PhysicsSystem_SingleThread(FastECS::Registry& registry, float dt) {
     auto view = registry.view<Position, Velocity>();
+    // 遍历同时拥有 Position 和 Velocity 的实体
     view.each([dt](FastECS::Entity, Position& pos, Velocity& vel) {
         pos.x += vel.vx * dt;
         pos.y += vel.vy * dt;
@@ -26,6 +28,7 @@ void PhysicsSystem_SingleThread(FastECS::Registry& registry, float dt) {
     });
 }
 
+// 多线程并发物理更新系统
 void PhysicsSystem_MultiThread(FastECS::Registry& registry, FastECS::JobSystem& jobSystem, float dt) {
     auto* posPool = registry.get_pool<Position>();
     auto* velPool = registry.get_pool<Velocity>();
@@ -34,6 +37,8 @@ void PhysicsSystem_MultiThread(FastECS::Registry& registry, FastECS::JobSystem& 
     size_t totalEntities = entities.size();
     if (totalEntities == 0) return;
 
+    // 将连续数组分块（Batching），每块 10000 个实体。
+    // 核心目的：让不同线程操作物理内存相隔极远的数据块，彻底规避伪共享 (False Sharing)！
     const size_t CHUNK_SIZE = 10000;
     size_t numChunks = (totalEntities + CHUNK_SIZE - 1) / CHUNK_SIZE;
 
@@ -41,6 +46,7 @@ void PhysicsSystem_MultiThread(FastECS::Registry& registry, FastECS::JobSystem& 
         size_t startIdx = chunk * CHUNK_SIZE;
         size_t endIdx = std::min(startIdx + CHUNK_SIZE, totalEntities);
 
+        // 将每个数据块作为一个 Job 提交给线程池
         jobSystem.execute([startIdx, endIdx, posPool, velPool, &entities, dt]() {
             for (size_t i = startIdx; i < endIdx; ++i) {
                 FastECS::Entity e = entities[i];
@@ -55,6 +61,7 @@ void PhysicsSystem_MultiThread(FastECS::Registry& registry, FastECS::JobSystem& 
         });
     }
 
+    // 主线程等待本帧所有物理更新任务完成
     jobSystem.wait();
 }
 
@@ -70,16 +77,19 @@ int main() {
     registry.register_component<Velocity>();
     registry.register_component<Renderable>();
 
+    // 创建 100 万个实体用于压测
     const int ENTITY_COUNT = 1000000;
     
     for (int i = 0; i < ENTITY_COUNT; ++i) {
         FastECS::Entity e = registry.create();
         registry.emplace<Position>(e, 0.0f, 0.0f, 0.0f);
         
+        // 50 万个实体有 Velocity
         if (i % 2 == 0) {
             registry.emplace<Velocity>(e, 1.0f, 1.0f, 1.0f);
         }
 
+        // 10 万个实体有 Renderable
         if (i % 10 == 0) {
             registry.emplace<Renderable>(e, 999);
         }
@@ -98,6 +108,9 @@ int main() {
     std::cout << "Multi-Thread execution: " << diffMulti.count() << " ms" << std::endl;
 
     std::cout << "Speedup: " << diffSingle.count() / diffMulti.count() << "x" << std::endl;
+
+    std::cout << "\nPress Enter to exit..." << std::endl;
+    std::cin.get();
 
     return 0;
 }
